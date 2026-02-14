@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
 BATCH_SIZE = 16
-EPOCHS = 1
+EPOCHS = 20
 
 
 # -------------------------------------------------
@@ -61,6 +61,7 @@ def build_cnn_model(input_shape):
         # Fully Connected Section
         layers.Flatten(),
         layers.Dense(64, activation='relu'),
+        layers.Dense(128, activation='relu'),
         layers.Dense(10, activation='softmax')
     ])
 
@@ -85,7 +86,7 @@ def train_and_evaluate(model, x_train, y_train, x_test, y_test):
         validation_split=0.2,
         epochs=EPOCHS,
         batch_size=BATCH_SIZE,
-        verbose=1
+        verbose=0
     )
 
     loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
@@ -117,17 +118,17 @@ def visualize_test_results(model, x_test, y_test, num_of_img=5):
         plt.axis("off")
 
     plt.savefig("cnn_result.png")
-    plt.show()
 
 
 # -------------------------------------------------
 # MAIN
 # -------------------------------------------------
 def main():
+
     # "mnist"
     # "fashion_mnist"
     # "cifar10"
-    dataset_name = "cifar10"
+    dataset_name = "fashion_mnist"
 
     x_train, y_train, x_test, y_test, input_shape = load_data(dataset_name)
 
