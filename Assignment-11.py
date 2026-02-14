@@ -1,161 +1,183 @@
-"""
-    Discuss the feature extraction power of your favorite CNN pretrained by the ImageNet
-    dataset before and after transfer learning by the MNIST digit dataset after plotting high
-    dimensional feature vectors on 2D plane using the following two dimension reduction
-    techniques:
-        ●​ Principal Component Analysis (PCA)
-        ●​ t-distributed Stochastic Neighbor Embedding (t-SNE)
-"""
-
 # ==========================================================
 # 1. IMPORT LIBRARIES
 # ==========================================================
 import tensorflow as tf
 from tensorflow.keras.applications import VGG16
 from tensorflow.keras import layers, models
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import numpy as np
 
 
 # ==========================================================
-# 2. LOAD AND PREPARE MNIST DATA
+# 2. LOAD DATA (USING KERAS MNIST)
 # ==========================================================
-def load_mnist(sample_size=500):
-    """
-    Loads MNIST and converts to RGB 224x224 for VGG16.
-    Only small sample is used → faster for beginners.
-    """
-    (x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
+def load_data():
 
-    x = x_train[:sample_size]
-    y = y_train[:sample_size]
+    img_size = (224, 224)
+    batch_size = 16
 
-    # Convert grayscale
-    x = np.stack([x]*3, axis=-1)                # (N, 28, 28, 3)
-    x = tf.image.resize(x, (224, 224)).numpy()  # (N, 224, 224, 3)
+    # Load MNIST
+    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 
-    return x, y
+    # Keep only digits 0 and 1
+    train_filter = np.where((y_train == 0) | (y_train == 1))
+    test_filter = np.where((y_test == 0) | (y_test == 1))
+
+    x_train, y_train = x_train[train_filter], y_train[train_filter]
+    x_test, y_test = x_test[test_filter], y_test[test_filter]
+
+    # Normalize
+    x_train = x_train.astype("float32") / 255.0
+    x_test = x_test.astype("float32") / 255.0
+
+    # Expand channel dimension
+    x_train = np.expand_dims(x_train, -1)
+    x_test = np.expand_dims(x_test, -1)
+
+    # Split validation (80/20)
+    val_split = int(0.8 * len(x_train))
+
+    x_val = x_train[val_split:]
+    y_val = y_train[val_split:]
+
+    x_train = x_train[:val_split]
+    y_train = y_train[:val_split]
+
+    # Create tf.data datasets
+    train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    val_ds = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+
+    # Resize INSIDE pipeline (RAM safe)
+    def preprocess(image, label):
+        image = tf.image.resize(image, img_size)
+        image = tf.image.grayscale_to_rgb(image)
+        return image, label
+
+    train_ds = train_ds.map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    val_ds = val_ds.map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    test_ds = test_ds.map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
+    return train_ds, val_ds, test_ds
 
 
 # ==========================================================
-# 3. CREATE FEATURE EXTRACTOR MODEL
+# 3. CREATE MODEL WITH DIFFERENT FINE-TUNING OPTIONS
 # ==========================================================
-def create_feature_extractor(trainable=False):
-    """
-    Returns VGG16 model without classifier.
-    trainable=False before transfer learning
-    trainable=True after transfer learning
-    """
-    base = VGG16(weights="imagenet", include_top=False,
-                 input_shape=(224, 224, 3))
+def create_model(trainable_layers=None):
 
-    base.trainable = trainable
+    base_model = VGG16(weights="imagenet", include_top=False,
+                       input_shape=(224, 224, 3))
 
-    # Global average pooling → feature vector
-    x = layers.GlobalAveragePooling2D()(base.output)
+    # Freeze everything first
+    for layer in base_model.layers:
+        layer.trainable = False
 
-    model = models.Model(inputs=base.input, outputs=x)
+    # ---------- Fine-tuning options ----------
+    if trainable_layers == "all":
+        base_model.trainable = True
+
+    elif isinstance(trainable_layers, int):
+        base_model.trainable = True
+        for layer in base_model.layers[:-trainable_layers]:
+            layer.trainable = False
+    # -----------------------------------------
+
+    # Classifier head
+    x = base_model.output
+    x = layers.Flatten()(x)
+    x = layers.Dense(128, activation="relu")(x)
+    x = layers.Dense(1, activation="sigmoid")(x)
+
+    model = models.Model(inputs=base_model.input, outputs=x)
+
+    model.compile(
+        optimizer="adam",
+        loss="binary_crossentropy",
+        metrics=["accuracy"]
+    )
+
     return model
 
 
 # ==========================================================
-# 4. SIMPLE TRANSFER LEARNING ON MNIST
+# 4. TRAIN MODEL
 # ==========================================================
-def transfer_learn_model(x, y):
-    """
-    Fine-tunes VGG16 on MNIST digits.
-    """
-    base = VGG16(weights="imagenet", include_top=False,
-                 input_shape=(224, 224, 3))
+def train_model(model, train_ds, val_ds, title):
 
-    base.trainable = True   # full fine-tuning
+    print("\n==============================")
+    print("Training:", title)
+    print("==============================\n")
 
-    x_out = layers.GlobalAveragePooling2D()(base.output)
-    x_out = layers.Dense(128, activation="relu")(x_out)
-    x_out = layers.Dense(10, activation="softmax")(x_out)
+    history = model.fit(
+        train_ds,
+        validation_data=val_ds,
+        epochs=1,
+        verbose=1
+    )
 
-    model = models.Model(base.input, x_out)
-
-    model.compile(optimizer="adam",
-                  loss="sparse_categorical_crossentropy",
-                  metrics=["accuracy"])
-
-    model.fit(x, y, epochs=1, batch_size=32, verbose=1)  # only 1 epoch
-
-    # Return feature extractor part
-    feature_model = models.Model(model.input,
-                                 model.layers[-3].output)
-
-    return feature_model
+    return history
 
 
 # ==========================================================
-# 5. EXTRACT HIGH-DIMENSIONAL FEATURES
+# 5. EVALUATE ON TEST DATA
 # ==========================================================
-def extract_features(model, x):
-    """
-    Returns feature vectors from CNN.
-    """
-    features = model.predict(x, verbose=0)
-    return features
+def evaluate_model(model, test_ds, title):
 
-
-# ==========================================================
-# 6. DIMENSION REDUCTION (PCA + t-SNE)
-# ==========================================================
-def reduce_dimensions(features):
-    """
-    Converts high-dimensional features → 2D.
-    """
-    pca = PCA(n_components=2)
-    pca_result = pca.fit_transform(features)
-
-    tsne = TSNE(n_components=2, perplexity=30, random_state=0)
-    tsne_result = tsne.fit_transform(features)
-
-    return pca_result, tsne_result
+    loss, acc = model.evaluate(test_ds, verbose=0)
+    print(f"\nTest Accuracy ({title}): {acc:.4f}")
+    return acc
 
 
 # ==========================================================
-# 7. PLOT RESULTS
+# 6. PLOT VALIDATION ACCURACY COMPARISON
 # ==========================================================
-def plot_2d(points, labels, title, fig_name):
-    """
-    Scatter plot of 2D features.
-    """
+def plot_histories(histories, labels):
+
     plt.figure()
-    plt.scatter(points[:, 0], points[:, 1], c=labels, cmap="tab10", s=5)
-    plt.title(title)
-    plt.colorbar()
-    plt.savefig(fig_name)
+
+    for h, label in zip(histories, labels):
+        plt.plot(h.history["val_accuracy"], label=label)
+
+    plt.title("Fine-Tuning Comparison (Validation Accuracy)")
+    plt.xlabel("Epoch")
+    plt.ylabel("Validation Accuracy")
+    plt.legend()
+    plt.show()
 
 
 # ==========================================================
-# 8. MAIN FUNCTION
+# 7. MAIN FUNCTION
 # ==========================================================
 def main():
 
-    # Load MNIST
-    x, y = load_mnist()
+    train_ds, val_ds, test_ds = load_data()
 
-    # -------- BEFORE TRANSFER LEARNING --------
-    model_before = create_feature_extractor(trainable=False)
-    features_before = extract_features(model_before, x)
-    pca_before, tsne_before = reduce_dimensions(features_before)
+    histories = []
+    labels = []
 
-    # -------- AFTER TRANSFER LEARNING --------
-    model_after = transfer_learn_model(x, y)
-    features_after = extract_features(model_after, x)
-    pca_after, tsne_after = reduce_dimensions(features_after)
+    # A. Frozen
+    model_frozen = create_model(trainable_layers=None)
+    h1 = train_model(model_frozen, train_ds, val_ds, "Frozen VGG16")
+    evaluate_model(model_frozen, test_ds, "Frozen")
+    histories.append(h1)
+    labels.append("Frozen")
 
-    # -------- PLOTS --------
-    plot_2d(pca_before, y, "PCA Before Transfer Learning", "pca_before")
-    plot_2d(tsne_before, y, "t-SNE Before Transfer Learning", "tsne_before")
+    # B. Partial Fine-Tuning
+    model_partial = create_model(trainable_layers=4)
+    h2 = train_model(model_partial, train_ds, val_ds, "Partial Fine-Tuning")
+    evaluate_model(model_partial, test_ds, "Partial")
+    histories.append(h2)
+    labels.append("Partial")
 
-    plot_2d(pca_after, y, "PCA After Transfer Learning", "pca_after")
-    plot_2d(tsne_after, y, "t-SNE After Transfer Learning", "tsne_after")
+    # C. Full Fine-Tuning
+    model_full = create_model(trainable_layers="all")
+    h3 = train_model(model_full, train_ds, val_ds, "Full Fine-Tuning")
+    evaluate_model(model_full, test_ds, "Full")
+    histories.append(h3)
+    labels.append("Full")
+
+    plot_histories(histories, labels)
 
 
 if __name__ == "__main__":
