@@ -75,16 +75,48 @@ def train_and_test_model(model, x_train, y_train, x_val, y_val):
     return history
 
 
-
 def evaluate_and_predict(model, x_test, y_test):
     
     loss, mae = model.evaluate(x_test, y_test, verbose=0)
     predictions = model.predict(x_test)
     r2 = r2_score(y_test, predictions)
-    
     return loss, mae, predictions, r2
 
 
+def plot_training_curves(history):
+    print("\n\n====== Plotting Regression Curves =====\n\n")
+
+    loss = history.history['loss']              # MSE
+    val_loss = history.history['val_loss']
+
+    mae = history.history['mae']
+    val_mae = history.history['val_mae']
+
+    epochs_range = range(1, len(loss) + 1)
+
+    plt.figure(figsize=(12, 5))
+
+    # -------- MSE Plot --------
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, loss)
+    plt.plot(epochs_range, val_loss)
+    plt.title("Training vs Validation MSE")
+    plt.xlabel("Epochs")
+    plt.ylabel("MSE")
+    plt.legend(["Train", "Validation"])
+
+    # -------- MAE Plot --------
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, mae)
+    plt.plot(epochs_range, val_mae)
+    plt.title("Training vs Validation MAE")
+    plt.xlabel("Epochs")
+    plt.ylabel("MAE")
+    plt.legend(["Train", "Validation"])
+
+    plt.tight_layout()
+    plt.savefig("output/regression_training_curves.png")
+    
 def visualize_results(x_test, predictions, y_test, eq_type):
     
     plt.figure(figsize=(10, 6))
@@ -93,11 +125,11 @@ def visualize_results(x_test, predictions, y_test, eq_type):
     plt.title("Results (Actual vs Predicted)")
     plt.legend()
     if eq_type == 1:
-        plt.savefig("linear_result.png")
+        plt.savefig("output/linear_result.png")
     elif eq_type == 2:
-        plt.savefig("quadratic_result.png")
+        plt.savefig("output/quadratic_result.png")
     else:
-        plt.savefig("Cubic_result.png")
+        plt.savefig("output/Cubic_result.png")
     print("Result updated")
 
 
@@ -121,8 +153,10 @@ def main():
     print(f"Test Loss (MSE): {loss:.4f}")
     print(f"Test MAE: {mae:.4f}")
     print(f"R2 score: {r2:.4f}")
+    
     # Plot results
     visualize_results(x_test, predictions, y_test, eq_type)
+    plot_training_curves(history)
 
 
 if __name__ == "__main__":
