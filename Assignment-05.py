@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
 BATCH_SIZE = 16
-EPOCHS = 20
+EPOCHS = 3
 
 
 # -------------------------------------------------
@@ -80,7 +80,7 @@ def build_cnn_model(input_shape):
 def train_and_evaluate(model, x_train, y_train, x_test, y_test):
     print("\n\n====== Train and Evaluate Model =====\n\n")
 
-    model.fit(
+    history = model.fit(
         x_train,
         y_train,
         validation_split=0.2,
@@ -90,9 +90,41 @@ def train_and_evaluate(model, x_train, y_train, x_test, y_test):
     )
 
     loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
-    return loss, accuracy
+    return history, loss, accuracy
 
+def plot_training_curves(history):
+    print("\n\n====== Plotting Accuracy & Loss Curves =====\n\n")
 
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    epochs_range = range(1, len(acc) + 1)
+
+    plt.figure(figsize=(12, 5))
+
+    # -------- Accuracy Plot --------
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, acc)
+    plt.plot(epochs_range, val_acc)
+    plt.title("Training vs Validation Accuracy")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.legend(["Train", "Validation"])
+
+    # -------- Loss Plot --------
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, loss)
+    plt.plot(epochs_range, val_loss)
+    plt.title("Training vs Validation Loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend(["Train", "Validation"])
+
+    plt.tight_layout()
+    plt.savefig("output/training_curves.png")
+    
 # -------------------------------------------------
 # VISUALIZATION (Handles RGB & Grayscale)
 # -------------------------------------------------
@@ -117,7 +149,7 @@ def visualize_test_results(model, x_test, y_test, num_of_img=5):
         plt.title(f"A:{labels[i]} | P:{pred_labels[i]}", fontsize=9)
         plt.axis("off")
 
-    plt.savefig("cnn_result.png")
+    plt.savefig("output/cnn_result.png")
 
 
 # -------------------------------------------------
@@ -135,11 +167,14 @@ def main():
     model = build_cnn_model(input_shape)
     model.summary()
 
-    loss, accuracy = train_and_evaluate(model, x_train, y_train, x_test, y_test)
+    history, loss, accuracy = train_and_evaluate(
+        model, x_train, y_train, x_test, y_test
+    )
 
     print(f"\nFinal Test Accuracy: {accuracy:.4%}")
     print(f"Final Test Loss: {loss:.4f}")
 
+    plot_training_curves(history)   # ✅ Added
     visualize_test_results(model, x_test, y_test)
 
 
