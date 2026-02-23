@@ -45,6 +45,7 @@ def build_model(x_train):
     normalize_layer.adapt(x_train)
     
     model = keras.Sequential([
+        keras.Input(shape=(1,)),
         normalize_layer,
         layers.Dense(32, activation='relu'),
         layers.Dense(64, activation='relu'),
