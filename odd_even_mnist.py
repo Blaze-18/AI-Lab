@@ -172,7 +172,50 @@ def predict_odd_even(model, x_test, y_test, digit_type="even", num_of_img=5):
 
     plt.tight_layout()
     plt.savefig(f"output/{digit_type}_digits_prediction.png")
+#--------------------------------------------------------
+#-------------------------------------------------------
+# If the dataset is given as folder the use this function
+#-------------------------------------------------------
+#--------------------------------------------------------
+def predict_odd_even_from_dataset(model, test_ds, digit_type="even", num_of_img=5):
+    print(f"\n\n====== Testing on {digit_type.upper()} digits only ======\n\n")
 
+    images_list = []
+    labels_list = []
+
+    # Collect matching samples
+    for images, labels in test_ds:
+        for img, label in zip(images, labels):
+
+            if digit_type == "even" and label.numpy() % 2 == 0:
+                images_list.append(img)
+                labels_list.append(label.numpy())
+
+            elif digit_type == "odd" and label.numpy() % 2 != 0:
+                images_list.append(img)
+                labels_list.append(label.numpy())
+
+            if len(images_list) >= num_of_img:
+                break
+
+        if len(images_list) >= num_of_img:
+            break
+
+    images = tf.stack(images_list)
+
+    preds = model.predict(images, verbose=0)
+    pred_labels = np.argmax(preds, axis=1)
+
+    plt.figure(figsize=(12, 4))
+
+    for i in range(num_of_img):
+        plt.subplot(1, num_of_img, i + 1)
+        plt.imshow(images[i].numpy().squeeze(), cmap="gray")
+        plt.title(f"A:{labels_list[i]} | P:{pred_labels[i]}")
+        plt.axis("off")
+
+    plt.tight_layout()
+    plt.show()
 # -------------------------------------------------
 # MAIN
 # -------------------------------------------------
@@ -195,6 +238,13 @@ def main():
     
     predict_odd_even(model, x_test, y_test, digit_type="even")
     predict_odd_even(model, x_test, y_test, digit_type="odd")
+    """"
+    # Data set is given as folder then use the below
+    predict_odd_even_from_dataset(model, test_ds, "even")
+    predict_odd_even_from_dataset(model, test_ds, "odd")
+
+    Please remove the comments when using datset from folder and use this function
+    """
 
 
 if __name__ == "__main__":
