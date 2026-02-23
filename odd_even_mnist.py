@@ -132,7 +132,7 @@ def visualize_test_results(model, x_test, y_test, num_of_img=5):
     plt.savefig("output/cnn_result.png")
 
 # -------------------------------------------------
-# TEST MODEL ON ONLY ODD OR EVEN DIGITS (MNIST)
+# TEST MODEL ON ONLY ODD OR EVEN DIGITS (MNIST) If data is loaded from keras.load
 # -------------------------------------------------
 def predict_odd_even(model, x_test, y_test, digit_type="even", num_of_img=5):
     """
