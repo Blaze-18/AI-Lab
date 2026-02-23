@@ -117,7 +117,7 @@ def visualize_test_results(model, test_ds, num_of_img=5):
     for i in range(num_of_img):
         plt.subplot(1, num_of_img, i + 1)
         plt.imshow(images[i].numpy().squeeze(), cmap="gray")
-        plt.title(f"A:{labels[i].numpy()} | P:{pred_labels[i]}", fontsize=8)
+        plt.title(f"A:{labels[i]} | P:{pred_labels[i]}", fontsize=8)
         plt.axis("off")
 
     plt.tight_layout()
