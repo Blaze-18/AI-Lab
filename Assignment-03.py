@@ -3,7 +3,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
-
+from sklearn.metrics import r2_score
 
 def equation_builder(eq_type, n):
     x = np.random.uniform(low=-10, high=10, size=n).reshape(-1, 1)
