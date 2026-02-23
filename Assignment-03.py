@@ -80,8 +80,9 @@ def evaluate_and_predict(model, x_test, y_test):
     
     loss, mae = model.evaluate(x_test, y_test, verbose=0)
     predictions = model.predict(x_test)
+    r2 = r2_score(y_test, predictions)
     
-    return loss, mae, predictions
+    return loss, mae, predictions, r2
 
 
 def visualize_results(x_test, predictions, y_test, eq_type):
@@ -115,11 +116,11 @@ def main():
     history = train_and_test_model(model, x_train, y_train, x_val, y_val)
     
     # Evaluate and predict
-    loss, mae, predictions = evaluate_and_predict(model, x_test, y_test)
+    loss, mae, predictions, r2 = evaluate_and_predict(model, x_test, y_test)
     
-    print("Test Loss (MSE):", loss)
-    print("Test MAE:", mae)
-    
+    print(f"Test Loss (MSE): {loss:.4f}")
+    print(f"Test MAE: {mae:.4f}")
+    print(f"R2 score: {r2:.4f}")
     # Plot results
     visualize_results(x_test, predictions, y_test, eq_type)
 
