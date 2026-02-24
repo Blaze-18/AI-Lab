@@ -4,248 +4,162 @@ from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
 
-# --- CONFIGURATION ---
-BATCH_SIZE = 16
-EPOCHS = 3
+TRAIN_DIR = "/home/shahriar-anan/AI/tensorflow-projects/assignments/dataset/mnist_png/train"
+TEST_DIR = "/home/shahriar-anan/AI/tensorflow-projects/assignments/dataset/mnist_png/test"
+import tensorflow as tf
+from tensorflow import keras
 
+def load_img():
+    # First load without batching to filter individual samples
+    train_ds = keras.utils.image_dataset_from_directory(
+        TRAIN_DIR,
+        validation_split=0.2,
+        subset='training',
+        seed=123,
+        color_mode='grayscale',
+        image_size=(28, 28),
+        batch_size=None  # No batching initially for clean filtering
+    )
 
-# -------------------------------------------------
-# LOAD DATASET (MNIST ONLY)
-# -------------------------------------------------
-def load_data():
-    (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
-    x_train = x_train.reshape(-1, 28, 28, 1).astype("float32")
-    x_test = x_test.reshape(-1, 28, 28, 1).astype("float32")
-    input_shape = (28, 28, 1)
+    val_ds = keras.utils.image_dataset_from_directory(
+        TRAIN_DIR,
+        validation_split=0.2,
+        subset='validation',
+        seed=123,
+        color_mode='grayscale',
+        image_size=(28, 28),
+        batch_size=None  # No batching initially
+    )
 
-    return x_train, y_train, x_test, y_test, input_shape
+    test_ds = keras.utils.image_dataset_from_directory(
+        TEST_DIR,
+        shuffle=False,
+        color_mode='grayscale',
+        image_size=(28, 28),
+        batch_size=None  # No batching initially
+    )
 
+    # Filter individual samples (not batches)
+    train_ds = train_ds.filter(lambda img, label: label % 2 == 1)
+    val_ds = val_ds.filter(lambda img, label: label % 2 == 1)
+    test_ds = test_ds.filter(lambda img, label: label % 2 == 1)
 
-# -------------------------------------------------
-# BUILD CNN MODEL (Dynamic Input Shape)
-# -------------------------------------------------
-def build_cnn_model(input_shape):
-    print("\n\n====== Build CNN Model Architecture =====\n\n")
+    """
+    
+    # Filter only EVEN labels (label % 2 == 0) (Remove the comments before using)
+    train_ds = train_ds.filter(lambda img, label: label % 2 == 0)
+    val_ds = val_ds.filter(lambda img, label: label % 2 == 0)
+    test_ds = test_ds.filter(lambda img, label: label % 2 == 0)
+    """
 
+    # Now batch them
+    train_ds = train_ds.batch(16)
+    val_ds = val_ds.batch(16)
+    test_ds = test_ds.batch(16)
+
+    return train_ds, val_ds, test_ds
+
+def build_model():
     model = keras.Sequential([
-        layers.Rescaling(1./255, input_shape=input_shape),
-
-        # Conv Block 1
-        layers.Conv2D(32, (3, 3), activation='relu'),
-        layers.MaxPooling2D((2, 2)),
-
-        # Conv Block 2
-        layers.Conv2D(64, (3, 3), activation='relu'),
-        layers.MaxPooling2D((2, 2)),
-
-        # Fully Connected Section
+        layers.Rescaling(1./255, input_shape=(28,28,1)),
+        layers.Conv2D(32, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        
+        layers.Conv2D(64, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        
         layers.Flatten(),
+        layers.Dense(32, activation='relu'),
         layers.Dense(64, activation='relu'),
         layers.Dense(128, activation='relu'),
-        layers.Dense(10, activation='softmax')
+        layers.Dense(10, activation='softmax'),
+        
     ])
-
     model.compile(
         optimizer='adam',
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
-
     return model
-
-
-# -------------------------------------------------
-# TRAIN & EVALUATE
-# -------------------------------------------------
-def train_and_evaluate(model, x_train, y_train, x_test, y_test):
-    print("\n\n====== Train and Evaluate Model =====\n\n")
-
+    
+def train_model(model, train_ds, val_ds):
     history = model.fit(
-        x_train,
-        y_train,
-        validation_split=0.2,
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
+        train_ds,
+        validation_data=val_ds,
+        epochs=5,
         verbose=0
     )
-
-    loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
-    return history, loss, accuracy
-
-def plot_training_curves(history):
-    print("\n\n====== Plotting Accuracy & Loss Curves =====\n\n")
-
-    acc = history.history['accuracy']
-    val_acc = history.history['val_accuracy']
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
-
-    epochs_range = range(1, len(acc) + 1)
-
-    plt.figure(figsize=(12, 5))
-
-    # -------- Accuracy Plot --------
-    plt.subplot(1, 2, 1)
-    plt.plot(epochs_range, acc)
-    plt.plot(epochs_range, val_acc)
-    plt.title("Training vs Validation Accuracy")
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.legend(["Train", "Validation"])
-
-    # -------- Loss Plot --------
-    plt.subplot(1, 2, 2)
-    plt.plot(epochs_range, loss)
-    plt.plot(epochs_range, val_loss)
-    plt.title("Training vs Validation Loss")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend(["Train", "Validation"])
-
-    plt.tight_layout()
-    plt.savefig("output/training_curves.png")
     
-# -------------------------------------------------
-# VISUALIZATION (Handles RGB & Grayscale)
-# -------------------------------------------------
-def visualize_test_results(model, x_test, y_test, num_of_img=5):
-    indices = np.random.choice(len(x_test), num_of_img)
-    images = x_test[indices]
-    labels = y_test[indices]
+    return history
+    
+def evaluate_model(model, test_ds):
+    loss, accuracy = model.evaluate(test_ds, verbose=0)
+    return loss, accuracy
+   
+def visualize_pred(model, test_ds):
 
-    preds = model.predict(images, verbose=0)
-    pred_labels = np.argmax(preds, axis=1)
+    
+    for images, labels in test_ds.take(1):
+        break
+    
 
-    plt.figure(figsize=(12, 4))
+    predicted_img = model.predict(images, verbose=0)
+    pred_label = np.argmax(predicted_img, axis=1)
+    
+    plt.figure(figsize=(15,5))
+    for i in range(5):
+        plt.subplot(1,5, i+1)
+        plt.imshow(images[i], cmap='gray')
+        plt.axis('off')
+        plt.title(f"A: {labels[i]} | P: {pred_label[i]}")
+        plt.savefig("nirjhor_img.png")
 
-    for i in range(num_of_img):
-        plt.subplot(1, num_of_img, i + 1)
-
-        if images.shape[-1] == 1:
-            plt.imshow(images[i].squeeze(), cmap="gray")
-        else:
-            plt.imshow(images[i].astype("uint8"))
-
-        plt.title(f"A:{labels[i]} | P:{pred_labels[i]}", fontsize=9)
-        plt.axis("off")
-
-    plt.savefig("output/cnn_result.png")
-
-# -------------------------------------------------
-# TEST MODEL ON ONLY ODD OR EVEN DIGITS (MNIST) If data is loaded from keras.load
-# -------------------------------------------------
-def predict_odd_even(model, x_test, y_test, digit_type="even", num_of_img=5):
-    """
-    digit_type: "even" or "odd"
-    """
-
-    print(f"\n\n====== Testing on {digit_type.upper()} digits only ======\n\n")
-
-    if digit_type == "even":
-        mask = (y_test % 2 == 0)
-    elif digit_type == "odd":
-        mask = (y_test % 2 != 0)
-    else:
-        raise ValueError("digit_type must be 'even' or 'odd'")
-
-    # Filter dataset
-    x_filtered = x_test[mask]
-    y_filtered = y_test[mask]
-
-    # Randomly choose samples
-    indices = np.random.choice(len(x_filtered), num_of_img)
-    images = x_filtered[indices]
-    labels = y_filtered[indices]
-
-    # Predict
-    preds = model.predict(images, verbose=0)
-    pred_labels = np.argmax(preds, axis=1)
-
-    # Plot
-    plt.figure(figsize=(12, 4))
-
-    for i in range(num_of_img):
-        plt.subplot(1, num_of_img, i + 1)
-        plt.imshow(images[i].squeeze(), cmap="gray")
-        plt.title(f"A:{labels[i]} | P:{pred_labels[i]}")
-        plt.axis("off")
-
-    plt.tight_layout()
-    plt.savefig(f"output/{digit_type}_digits_prediction.png")
-#--------------------------------------------------------
-#-------------------------------------------------------
-# If the dataset is given as folder the use this function
-#-------------------------------------------------------
-#--------------------------------------------------------
-def predict_odd_even_from_dataset(model, test_ds, digit_type="even", num_of_img=5):
-    print(f"\n\n====== Testing on {digit_type.upper()} digits only ======\n\n")
-
-    images_list = []
-    labels_list = []
-
-    # Collect matching samples
-    for images, labels in test_ds:
-        for img, label in zip(images, labels):
-
-            if digit_type == "even" and label.numpy() % 2 == 0:
-                images_list.append(img)
-                labels_list.append(label.numpy())
-
-            elif digit_type == "odd" and label.numpy() % 2 != 0:
-                images_list.append(img)
-                labels_list.append(label.numpy())
-
-            if len(images_list) >= num_of_img:
-                break
-
-        if len(images_list) >= num_of_img:
-            break
-
-    images = tf.stack(images_list)
-
-    preds = model.predict(images, verbose=0)
-    pred_labels = np.argmax(preds, axis=1)
-
-    plt.figure(figsize=(12, 4))
-
-    for i in range(num_of_img):
-        plt.subplot(1, num_of_img, i + 1)
-        plt.imshow(images[i].numpy().squeeze(), cmap="gray")
-        plt.title(f"A:{labels_list[i]} | P:{pred_labels[i]}")
-        plt.axis("off")
-
-    plt.tight_layout()
-    plt.show()
-# -------------------------------------------------
-# MAIN
-# -------------------------------------------------
+def plot_loss_acc_curve(history):
+    # train
+    loss = history.history["loss"]
+    accuracy = history.history['accuracy']
+    
+    # validation
+    val_loss = history.history["val_loss"]
+    val_accuracy = history.history["val_accuracy"]
+    
+    e_range = range(1, len(loss)+1)
+    
+    plt.figure(figsize=(12, 6))
+    # training loss vs accuracy
+    plt.subplot(1,2,1)
+    plt.plot(e_range, loss, color='blue', label='Train loss')
+    plt.plot(e_range, accuracy, color='red', label='Train accuracy')
+    plt.title("training loss vs accuracy")
+    
+    # validation loss vs accuracy
+    plt.subplot(1,2,2)
+    plt.plot(e_range, loss, label='Train loss')
+    plt.plot(e_range, accuracy, label='Train accuracy')
+    plt.title("validation loss vs accuracy")
+    
+    plt.savefig("nirjhor_curve.png")
+    
+    
+    
 def main():
-
-    x_train, y_train, x_test, y_test, input_shape = load_data()
-
-    model = build_cnn_model(input_shape)
-    model.summary()
-
-    history, loss, accuracy = train_and_evaluate(
-        model, x_train, y_train, x_test, y_test
-    )
-
-    print(f"\nFinal Test Accuracy: {accuracy:.4%}")
-    print(f"Final Test Loss: {loss:.4f}")
-
-    plot_training_curves(history)  
-    visualize_test_results(model, x_test, y_test)
     
-    predict_odd_even(model, x_test, y_test, digit_type="even")
-    predict_odd_even(model, x_test, y_test, digit_type="odd")
-    """"
-    # Data set is given as folder then use the below
-    predict_odd_even_from_dataset(model, test_ds, "even")
-    predict_odd_even_from_dataset(model, test_ds, "odd")
-
-    Please remove the comments when using datset from folder and use this function
-    """
-
-
-if __name__ == "__main__":
-    main()
+    train_ds, val_ds, test_ds = load_img()
+    
+    model = build_model() 
+    model.summary()
+    
+    history = train_model(model, train_ds, val_ds)
+    
+    loss, accuracy = evaluate_model(model, test_ds)
+    
+    print(f"Test\nLoss: {loss}")
+    print(f"Accuracy: {accuracy}")
+    
+    visualize_pred(model, test_ds)
+    plot_loss_acc_curve(history)
+    
+    print("Image saved")  
+    
+    
+main()
