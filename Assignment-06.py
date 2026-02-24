@@ -62,7 +62,7 @@ def build_model():
         layers.Flatten(),
         layers.Dense(128, activation='relu'),
         layers.Dense(64, activation='relu'),
-        layers.Dense(10, activation='softmax'),
+        layers.Dense(10, activation='softmax')
     ])
 
     model.compile(
