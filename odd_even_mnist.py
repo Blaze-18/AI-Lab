@@ -52,7 +52,7 @@ def load_img():
     test_ds = test_ds.filter(lambda img, label: label % 2 == 0)
     """
 
-    # Now batch them
+    # Now batch them (16 or 32)
     train_ds = train_ds.batch(16)
     val_ds = val_ds.batch(16)
     test_ds = test_ds.batch(16)
